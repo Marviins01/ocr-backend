@@ -2,10 +2,13 @@ __pycache__/
 .env
 venv/
 .venv/
+
 build/
 dist/
 temp/
+
 *.sqlite3
 *.exe
+
 token.json
 credentials.json
