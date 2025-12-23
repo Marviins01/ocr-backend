@@ -1,7 +1,5 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
-import uuid
-import os
 import re
 
 from google.cloud import vision
@@ -25,23 +23,34 @@ def extract_data_from_text(text: str):
     folio_match = re.search(r"\b\d{2},\d{3}\b", text)
     folio = folio_match.group(0) if folio_match else None
 
-    # -------- ITEMS --------
+    # -------- LIMPIAR LÍNEAS --------
     lines = [l.strip() for l in text.splitlines() if l.strip()]
-    items = []
 
+    items = []
     i = 0
-    while i < len(lines) - 1:
+
+    while i + 2 < len(lines):
+        # Cantidad
         if re.fullmatch(r"\d{1,2}", lines[i]):
             cantidad = int(lines[i])
 
+            # Código del artículo
             if re.fullmatch(r"\d{5,6}", lines[i + 1]):
-                codigo = lines[i + 1]
-                items.append({
-                    "cantidad": cantidad,
-                    "codigo": codigo
-                })
-                i += 2
-                continue
+                codigo_articulo = lines[i + 1]
+
+                # Código del solicitante (3 dígitos)
+                if re.fullmatch(r"\d{3}", lines[i + 2]):
+                    codigo_solicitante = lines[i + 2]
+
+                    items.append({
+                        "cantidad": cantidad,
+                        "codigo_articulo": codigo_articulo,
+                        "codigo_solicitante": codigo_solicitante
+                    })
+
+                    i += 3
+                    continue
+
         i += 1
 
     return {
@@ -50,16 +59,14 @@ def extract_data_from_text(text: str):
     }
 
 # ---------------------------------------
-# ENDPOINT
+# ENDPOINT OCR
 # ---------------------------------------
 @app.post("/ocr")
 async def ocr_endpoint(file: UploadFile = File(...)):
     try:
-        # Leer imagen
         content = await file.read()
         image = vision.Image(content=content)
 
-        # OCR
         response = vision_client.text_detection(image=image)
 
         if response.error.message:
@@ -67,7 +74,6 @@ async def ocr_endpoint(file: UploadFile = File(...)):
 
         full_text = response.text_annotations[0].description
 
-        # Parsear
         parsed = extract_data_from_text(full_text)
 
         return JSONResponse(content=parsed)
